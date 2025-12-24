@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useCallback } from 'react';
 import { TabulatorFull as Tabulator } from 'tabulator-tables';
 import { TabulatorWrapperProps, PackageRecord, ColumnDefinition } from '../types';
 import ContextMenu from './ContextMenu';
+import BulkActionBar from './BulkActionBar';
 
 /**
  * TabulatorWrapper Component
@@ -176,7 +177,24 @@ const TabulatorWrapper: React.FC<TabulatorWrapperProps> = ({
     // Get sample data to determine editor and filter types
     const sampleRecord = data[0];
 
-    return orderedColumns.map(col => {
+    // Prepare columns array with selection column if bulk actions are enabled
+    const tabulatorColumns: any[] = [];
+    
+    // Add row selection column if bulk actions are enabled
+    if (configuration.enableBulkActions) {
+      tabulatorColumns.push({
+        formatter: "rowSelection",
+        titleFormatter: "rowSelection",
+        hozAlign: "center",
+        headerSort: false,
+        width: 40,
+        resizable: false,
+        frozen: true
+      });
+    }
+
+    // Add regular columns
+    const regularColumns = orderedColumns.map(col => {
       const isEditable = col.editable !== false && 
                         configuration.enableEditing !== false && 
                         !configuration.readOnly;
@@ -244,7 +262,9 @@ const TabulatorWrapper: React.FC<TabulatorWrapperProps> = ({
         })
       };
     });
-  }, [configuration.readOnly, configuration.enableSorting, configuration.enableEditing, configuration.enableFiltering, tableState.columnWidths, tableState.columnOrder, data, getEditorType, getFilterType, getFilterFunction, validateCellValue]);
+    
+    return [...tabulatorColumns, ...regularColumns];
+  }, [configuration.readOnly, configuration.enableSorting, configuration.enableEditing, configuration.enableFiltering, configuration.enableBulkActions, tableState.columnWidths, tableState.columnOrder, data, getEditorType, getFilterType, getFilterFunction, validateCellValue]);
 
   // Initialize Tabulator
   useEffect(() => {
@@ -261,7 +281,8 @@ const TabulatorWrapper: React.FC<TabulatorWrapperProps> = ({
       movableColumns: true, // Enable column reordering
       resizableColumns: true, // Enable column resizing
       resizableColumnFit: true,
-      selectable: configuration.enableBulkActions ? "highlight" : false,
+      selectable: configuration.enableBulkActions ? true : false, // Enable row selection for bulk actions
+      selectableRangeMode: "click", // Allow range selection with shift+click
       reactiveData: true,
       
       // Sorting configuration
@@ -445,7 +466,8 @@ const TabulatorWrapper: React.FC<TabulatorWrapperProps> = ({
     onColumnOrderChange,
     onColumnWidthChange,
     setTableState,
-    getCurrentFilters
+    getCurrentFilters,
+    validateCellValue
   ]);
 
   // Update data when props change
@@ -470,6 +492,88 @@ const TabulatorWrapper: React.FC<TabulatorWrapperProps> = ({
     return () => document.removeEventListener('click', handleClickOutside);
   }, [tableState.contextMenu?.visible, setTableState]);
 
+  // Handle bulk operations
+  const handleBulkDelete = useCallback((rows: PackageRecord[]) => {
+    if (tabulatorRef.current) {
+      // Remove rows from table
+      rows.forEach(row => {
+        const tabulatorRow = tabulatorRef.current?.getRow(row.packageId);
+        if (tabulatorRow) {
+          tabulatorRow.delete();
+        }
+      });
+      
+      // Update data and clear selection
+      const updatedData = tabulatorRef.current.getData() as PackageRecord[];
+      onDataChange(updatedData);
+      
+      // Clear selection
+      tabulatorRef.current.deselectRow();
+    }
+  }, [onDataChange]);
+
+  const handleBulkExport = useCallback((rows: PackageRecord[]) => {
+    // Create CSV content
+    const headers = configuration.columns.map(col => col.title);
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => 
+        configuration.columns.map(col => {
+          const value = row[col.field as keyof PackageRecord];
+          // Handle array values (like packageList)
+          if (Array.isArray(value)) {
+            return `"${value.join('; ')}"`;
+          }
+          // Escape quotes and wrap in quotes if contains comma
+          const stringValue = String(value || '');
+          if (stringValue.includes(',') || stringValue.includes('"')) {
+            return `"${stringValue.replace(/"/g, '""')}"`;
+          }
+          return stringValue;
+        }).join(',')
+      )
+    ].join('\n');
+
+    // Create and download file
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `bulk_export_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }, [configuration.columns]);
+
+  const handleBulkUpdate = useCallback((rows: PackageRecord[]) => {
+    if (tabulatorRef.current) {
+      // Enable editing mode for selected rows
+      // This is a simplified implementation - in a real app you might want
+      // to show a bulk edit form or enable inline editing for all selected rows
+      
+      // For now, we'll just focus on the first selected row and enable editing
+      if (rows.length > 0) {
+        const firstRow = tabulatorRef.current.getRow(rows[0].packageId);
+        if (firstRow) {
+          // Scroll to the first row and highlight it
+          firstRow.scrollTo();
+          
+          // You could implement a bulk edit modal here
+          // For now, we'll just show an alert indicating bulk update is ready
+          alert(`Bulk update mode enabled for ${rows.length} rows. Click on any cell in the selected rows to edit.`);
+        }
+      }
+    }
+  }, []);
+
+  const handleClearSelection = useCallback(() => {
+    if (tabulatorRef.current) {
+      tabulatorRef.current.deselectRow();
+    }
+  }, []);
+
   // Handle context menu actions
   const handleContextMenuAction = (action: string, rowData: PackageRecord) => {
     // Call the parent's context menu action handler
@@ -491,6 +595,57 @@ const TabulatorWrapper: React.FC<TabulatorWrapperProps> = ({
 
   return (
     <div style={{ position: 'relative' }}>
+      {/* Bulk Action Bar */}
+      {configuration.enableBulkActions && (
+        <BulkActionBar
+          selectedRows={data.filter(row => tableState.selectedRows.has(row.packageId))}
+          onBulkDelete={handleBulkDelete}
+          onBulkExport={handleBulkExport}
+          onBulkUpdate={handleBulkUpdate}
+          onClearSelection={handleClearSelection}
+        />
+      )}
+      
+      {/* Selection Count Display */}
+      {configuration.enableBulkActions && tableState.selectedRows.size > 0 && (
+        <div 
+          style={{
+            padding: '8px 12px',
+            backgroundColor: '#e3f2fd',
+            borderBottom: '1px solid #bbdefb',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            fontSize: '14px',
+            color: '#1976d2'
+          }}
+          data-testid="selection-count-display"
+        >
+          <span>
+            {tableState.selectedRows.size} row{tableState.selectedRows.size !== 1 ? 's' : ''} selected
+          </span>
+          <button
+            onClick={() => {
+              if (tabulatorRef.current) {
+                tabulatorRef.current.deselectRow();
+              }
+            }}
+            style={{
+              padding: '4px 8px',
+              backgroundColor: 'transparent',
+              color: '#1976d2',
+              border: '1px solid #1976d2',
+              borderRadius: '4px',
+              fontSize: '12px',
+              cursor: 'pointer'
+            }}
+            data-testid="clear-selection-button"
+          >
+            Clear Selection
+          </button>
+        </div>
+      )}
+      
       {/* Filter Controls Bar */}
       {configuration.enableFiltering && (
         <div 

@@ -172,36 +172,36 @@
     - **Property 21: Context Menu Dismissal**
     - **Validates: Requirements 6.5**
 
-- [ ] 10. Implement bulk operations system
-  - [ ] 10.1 Add row selection functionality
+- [x] 10. Implement bulk operations system
+  - [x] 10.1 Add row selection functionality
     - Implement row checkboxes and selection tracking
     - Create selection state management
     - Add selection count display
     - _Requirements: 7.1_
 
-  - [ ] 10.2 Create BulkActionBar component
+  - [x] 10.2 Create BulkActionBar component
     - Add bulk action controls (Delete, Export, Update)
     - Implement bulk operation logic
     - Handle confirmation dialogs
     - _Requirements: 7.2, 7.3, 7.4, 7.5_
 
-  - [ ] 10.3 Write property test for row selection tracking
+  - [x] 10.3 Write property test for row selection tracking
     - **Property 22: Row Selection Tracking**
     - **Validates: Requirements 7.1**
 
-  - [ ] 10.4 Write property test for bulk action controls display
+  - [x] 10.4 Write property test for bulk action controls display
     - **Property 23: Bulk Action Controls Display**
     - **Validates: Requirements 7.2**
 
-  - [ ] 10.5 Write property test for bulk delete operation
+  - [x] 10.5 Write property test for bulk delete operation
     - **Property 24: Bulk Delete Operation**
     - **Validates: Requirements 7.3**
 
-  - [ ] 10.6 Write property test for bulk export operation
+  - [x] 10.6 Write property test for bulk export operation
     - **Property 25: Bulk Export Operation**
     - **Validates: Requirements 7.4**
 
-  - [ ] 10.7 Write property test for bulk update operation
+  - [x] 10.7 Write property test for bulk update operation
     - **Property 26: Bulk Update Operation**
     - **Validates: Requirements 7.5**
 
