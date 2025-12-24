@@ -1,10 +1,10 @@
 import { useState, useCallback } from 'react';
-import { TableState, PackageRecord } from '../types';
+import { TableState } from '../types';
 
 /**
  * Custom hook for managing table state
  */
-const useTableState = (_initialData: PackageRecord[]) => {
+const useTableState = () => {
   const [tableState, setTableState] = useState<TableState>({
     selectedRows: new Set<string>(),
     expandedRows: new Set<string>(),
@@ -12,6 +12,8 @@ const useTableState = (_initialData: PackageRecord[]) => {
     sortConfig: [],
     editingCell: null,
     contextMenu: null,
+    columnOrder: [],
+    columnWidths: {},
   });
 
   const updateSelectedRows = useCallback((rowIds: string[]) => {
@@ -43,11 +45,27 @@ const useTableState = (_initialData: PackageRecord[]) => {
     }));
   }, []);
 
+  const updateColumnOrder = useCallback((columnOrder: string[]) => {
+    setTableState(prev => ({
+      ...prev,
+      columnOrder
+    }));
+  }, []);
+
+  const updateColumnWidths = useCallback((columnWidths: Record<string, number>) => {
+    setTableState(prev => ({
+      ...prev,
+      columnWidths: { ...prev.columnWidths, ...columnWidths }
+    }));
+  }, []);
+
   return {
     tableState,
     updateSelectedRows,
     toggleRowExpansion,
     updateFilters,
+    updateColumnOrder,
+    updateColumnWidths,
     setTableState
   };
 };

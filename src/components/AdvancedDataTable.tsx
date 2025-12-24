@@ -3,6 +3,7 @@ import styled, { ThemeProvider } from 'styled-components';
 import { AdvancedDataTableProps, TableTheme } from '../types';
 import useTableState from '../hooks/useTableState';
 import TabulatorWrapper from './TabulatorWrapper';
+import { saveTableStateToSession, loadTableStateFromSession } from '../utils/sessionStorage';
 
 const defaultTheme: TableTheme = {
   primaryColor: '#007bff',
@@ -33,6 +34,50 @@ const TableContainer = styled.div<{ theme: TableTheme }>`
   .tabulator-col {
     background-color: ${props => props.theme.headerBackgroundColor};
     border-right: 1px solid ${props => props.theme.borderColor};
+    position: relative;
+    
+    &.tabulator-sortable {
+      cursor: pointer;
+      
+      &:hover {
+        background-color: ${props => props.theme.hoverColor};
+      }
+    }
+    
+    /* Sort indicators */
+    &.tabulator-col-sorter-element {
+      .tabulator-col-content {
+        position: relative;
+        padding-right: 20px;
+      }
+      
+      &::after {
+        content: '';
+        position: absolute;
+        right: 8px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 0;
+        height: 0;
+        opacity: 0.3;
+      }
+      
+      /* Ascending sort indicator */
+      &.tabulator-col-sorter-asc::after {
+        border-left: 4px solid transparent;
+        border-right: 4px solid transparent;
+        border-bottom: 6px solid ${props => props.theme.primaryColor};
+        opacity: 1;
+      }
+      
+      /* Descending sort indicator */
+      &.tabulator-col-sorter-desc::after {
+        border-left: 4px solid transparent;
+        border-right: 4px solid transparent;
+        border-top: 6px solid ${props => props.theme.primaryColor};
+        opacity: 1;
+      }
+    }
   }
   
   .tabulator-row {
@@ -58,6 +103,7 @@ const TableContainer = styled.div<{ theme: TableTheme }>`
 const AdvancedDataTable: React.FC<AdvancedDataTableProps> = ({
   data,
   configuration,
+  tableId = 'default',
   onDataChange,
   onRowSelect,
   onRowExpand,
@@ -66,9 +112,39 @@ const AdvancedDataTable: React.FC<AdvancedDataTableProps> = ({
   className
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const { tableState, updateSelectedRows, toggleRowExpansion, updateFilters, setTableState } = useTableState(data);
+  const { 
+    tableState, 
+    updateSelectedRows, 
+    toggleRowExpansion, 
+    updateFilters, 
+    updateColumnOrder,
+    updateColumnWidths,
+    setTableState 
+  } = useTableState();
   
   const mergedTheme = { ...defaultTheme, ...theme };
+
+  // Load persisted state on mount
+  useEffect(() => {
+    const persistedState = loadTableStateFromSession(tableId);
+    if (persistedState) {
+      setTableState(prev => ({
+        ...prev,
+        columnOrder: persistedState.columnOrder,
+        columnWidths: persistedState.columnWidths
+      }));
+    }
+  }, [tableId, setTableState]);
+
+  // Save state to session storage when column state changes
+  useEffect(() => {
+    if (tableState.columnOrder.length > 0 || Object.keys(tableState.columnWidths).length > 0) {
+      saveTableStateToSession(tableId, {
+        columnOrder: tableState.columnOrder,
+        columnWidths: tableState.columnWidths
+      });
+    }
+  }, [tableId, tableState.columnOrder, tableState.columnWidths]);
 
   // Handle data changes from parent component
   useEffect(() => {
@@ -122,11 +198,14 @@ const AdvancedDataTable: React.FC<AdvancedDataTableProps> = ({
           data={data}
           configuration={configuration}
           tableState={tableState}
+          tableId={tableId}
           onRowSelect={handleRowSelect}
           onRowExpand={handleRowExpand}
           onContextMenuAction={handleContextMenuAction}
           onDataChange={handleDataChange}
           onFiltersChange={updateFilters}
+          onColumnOrderChange={updateColumnOrder}
+          onColumnWidthChange={updateColumnWidths}
           setTableState={setTableState}
         />
       </TableContainer>

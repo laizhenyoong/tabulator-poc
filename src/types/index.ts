@@ -43,6 +43,7 @@ export interface TableTheme {
 export interface AdvancedDataTableProps {
   data: PackageRecord[];
   configuration: TableConfiguration;
+  tableId?: string; // Optional ID for session persistence
   onDataChange?: (data: PackageRecord[]) => void;
   onRowSelect?: (selectedRows: PackageRecord[]) => void;
   onRowExpand?: (row: PackageRecord) => React.ReactNode;
@@ -58,6 +59,8 @@ export interface TableState {
   sortConfig: SortConfiguration[];
   editingCell: CellPosition | null;
   contextMenu: ContextMenuState | null;
+  columnOrder: string[];
+  columnWidths: Record<string, number>;
 }
 
 export interface SortConfiguration {
@@ -82,10 +85,19 @@ export interface TabulatorWrapperProps {
   data: PackageRecord[];
   configuration: TableConfiguration;
   tableState: TableState;
+  tableId: string;
   onRowSelect: (selectedRows: string[]) => void;
   onRowExpand: (rowId: string) => React.ReactNode | null;
   onContextMenuAction: (action: string, rowData: PackageRecord) => void;
   onDataChange: (data: PackageRecord[]) => void;
   onFiltersChange: (filters: Record<string, any>) => void;
+  onColumnOrderChange: (columnOrder: string[]) => void;
+  onColumnWidthChange: (columnWidths: Record<string, number>) => void;
   setTableState: React.Dispatch<React.SetStateAction<TableState>>;
+}
+
+export interface FilterMethods {
+  clearAllFilters: () => void;
+  applyFilters: (filters: Record<string, any>) => void;
+  getCurrentFilters: () => Record<string, any>;
 }
