@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useCallback } from 'react';
 import { TabulatorFull as Tabulator } from 'tabulator-tables';
 import { TabulatorWrapperProps, PackageRecord, ColumnDefinition } from '../types';
+import ContextMenu from './ContextMenu';
 
 /**
  * TabulatorWrapper Component
@@ -17,6 +18,7 @@ const TabulatorWrapper: React.FC<TabulatorWrapperProps> = ({
   onFiltersChange,
   onColumnOrderChange,
   onColumnWidthChange,
+  onContextMenuAction,
   setTableState
 }) => {
   const tableRef = useRef<HTMLDivElement>(null);
@@ -388,14 +390,14 @@ const TabulatorWrapper: React.FC<TabulatorWrapperProps> = ({
       rowContext: (e: Event, row: any) => {
         e.preventDefault();
         const rowData = row.getData() as PackageRecord;
-        const rect = (e.target as HTMLElement).getBoundingClientRect();
+        const mouseEvent = e as MouseEvent;
         
         setTableState(prev => ({
           ...prev,
           contextMenu: {
             visible: true,
-            x: rect.left,
-            y: rect.top,
+            x: mouseEvent.clientX,
+            y: mouseEvent.clientY,
             rowData: rowData
           }
         }));
@@ -469,13 +471,22 @@ const TabulatorWrapper: React.FC<TabulatorWrapperProps> = ({
   }, [tableState.contextMenu?.visible, setTableState]);
 
   // Handle context menu actions
-  const handleContextMenuClick = (_action: string) => {
-    if (tableState.contextMenu?.rowData) {
-      setTableState(prev => ({
-        ...prev,
-        contextMenu: { ...prev.contextMenu!, visible: false }
-      }));
-    }
+  const handleContextMenuAction = (action: string, rowData: PackageRecord) => {
+    // Call the parent's context menu action handler
+    onContextMenuAction(action, rowData);
+    
+    // Close the context menu
+    setTableState(prev => ({
+      ...prev,
+      contextMenu: { ...prev.contextMenu!, visible: false }
+    }));
+  };
+
+  const handleContextMenuClose = () => {
+    setTableState(prev => ({
+      ...prev,
+      contextMenu: { ...prev.contextMenu!, visible: false }
+    }));
   };
 
   return (
@@ -543,42 +554,16 @@ const TabulatorWrapper: React.FC<TabulatorWrapperProps> = ({
       <div ref={tableRef} data-testid="tabulator-table" />
       
       {/* Context Menu */}
-      {tableState.contextMenu?.visible && (
-        <div
-          style={{
-            position: 'fixed',
-            top: tableState.contextMenu.y,
-            left: tableState.contextMenu.x,
-            backgroundColor: 'white',
-            border: '1px solid #ccc',
-            borderRadius: '4px',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-            zIndex: 1000,
-            minWidth: '120px'
-          }}
-          data-testid="context-menu"
-        >
-          <div
-            style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid #eee' }}
-            onClick={() => handleContextMenuClick('copy')}
-          >
-            Copy
-          </div>
-          <div
-            style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid #eee' }}
-            onClick={() => handleContextMenuClick('view-details')}
-          >
-            View Details
-          </div>
-          {!configuration.readOnly && (
-            <div
-              style={{ padding: '8px 12px', cursor: 'pointer' }}
-              onClick={() => handleContextMenuClick('lock-record')}
-            >
-              Lock Record
-            </div>
-          )}
-        </div>
+      {tableState.contextMenu && (
+        <ContextMenu
+          visible={tableState.contextMenu.visible}
+          x={tableState.contextMenu.x}
+          y={tableState.contextMenu.y}
+          rowData={tableState.contextMenu.rowData}
+          readOnly={configuration.readOnly}
+          onAction={handleContextMenuAction}
+          onClose={handleContextMenuClose}
+        />
       )}
     </div>
   );
