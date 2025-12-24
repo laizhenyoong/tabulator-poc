@@ -6,8 +6,8 @@ import { TableConfiguration, PackageRecord } from '../types';
  * Custom hook for managing Tabulator instance
  */
 const useTabulator = (
-  configuration: TableConfiguration,
-  onDataChange?: (data: PackageRecord[]) => void
+  _configuration: TableConfiguration,
+  _onDataChange?: (data: PackageRecord[]) => void
 ) => {
   const tableRef = useRef<HTMLDivElement>(null);
   const tabulatorRef = useRef<Tabulator | null>(null);

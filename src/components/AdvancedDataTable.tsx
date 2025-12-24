@@ -9,12 +9,12 @@ import { AdvancedDataTableProps } from '../types';
  */
 const AdvancedDataTable: React.FC<AdvancedDataTableProps> = ({
   data,
-  configuration,
-  onDataChange,
-  onRowSelect,
-  onRowExpand,
-  onContextMenuAction,
-  theme,
+  configuration: _configuration,
+  onDataChange: _onDataChange,
+  onRowSelect: _onRowSelect,
+  onRowExpand: _onRowExpand,
+  onContextMenuAction: _onContextMenuAction,
+  theme: _theme,
   className
 }) => {
   // Component implementation will be added in subsequent tasks

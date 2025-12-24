@@ -1,5 +1,5 @@
 // Jest setup file for testing configuration
-import 'jest-environment-jsdom';
+import '@testing-library/jest-dom';
 
 // Mock Tabulator for testing
 jest.mock('tabulator-tables', () => ({

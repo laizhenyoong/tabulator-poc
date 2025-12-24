@@ -4,7 +4,7 @@ import { TableState, PackageRecord } from '../types';
 /**
  * Custom hook for managing table state
  */
-const useTableState = (initialData: PackageRecord[]) => {
+const useTableState = (_initialData: PackageRecord[]) => {
   const [tableState, setTableState] = useState<TableState>({
     selectedRows: new Set<string>(),
     expandedRows: new Set<string>(),
