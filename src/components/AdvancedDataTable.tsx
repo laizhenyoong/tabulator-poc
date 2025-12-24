@@ -14,16 +14,38 @@ const defaultTheme: TableTheme = {
   hoverColor: '#f5f5f5'
 };
 
-const TableContainer = styled.div<{ theme: TableTheme }>`
+const TableContainer = styled.div<{ theme: TableTheme; readOnly?: boolean }>`
   background-color: ${props => props.theme.backgroundColor};
   border: 1px solid ${props => props.theme.borderColor};
   border-radius: 8px;
   overflow: hidden;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  position: relative;
+  
+  ${props => props.readOnly && `
+    &::before {
+      content: 'READ ONLY';
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background-color: #6c757d;
+      color: white;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      z-index: 10;
+      pointer-events: none;
+    }
+  `}
   
   .tabulator {
     background-color: transparent;
     border: none;
+    ${props => props.readOnly && `
+      opacity: 0.9;
+    `}
   }
   
   .tabulator-header {
@@ -91,6 +113,13 @@ const TableContainer = styled.div<{ theme: TableTheme }>`
   .tabulator-cell {
     border-right: 1px solid ${props => props.theme.borderColor};
     color: ${props => props.theme.textColor};
+    
+    ${props => props.readOnly && `
+      &.tabulator-editing {
+        background-color: transparent !important;
+        cursor: not-allowed !important;
+      }
+    `}
   }
 `;
 
@@ -153,6 +182,13 @@ const AdvancedDataTable: React.FC<AdvancedDataTableProps> = ({
     // This will be used by TabulatorWrapper to update table data
   }, [data]);
 
+  // Handle read-only mode changes - preserve state during mode switching
+  useEffect(() => {
+    // When read-only mode changes, we don't need to do anything special
+    // as the TabulatorWrapper will handle the reconfiguration through its own useEffect
+    // The table state (selections, expansions, filters, etc.) will be preserved
+  }, [configuration.readOnly]);
+
   // Handle selection changes
   const handleRowSelect = (selectedRows: string[]) => {
     updateSelectedRows(selectedRows);
@@ -195,6 +231,7 @@ const AdvancedDataTable: React.FC<AdvancedDataTableProps> = ({
         className={className} 
         data-testid="advanced-data-table"
         theme={mergedTheme}
+        readOnly={configuration.readOnly}
       >
         <TabulatorWrapper
           data={data}

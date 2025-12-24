@@ -293,8 +293,8 @@ const TabulatorWrapper: React.FC<TabulatorWrapperProps> = ({
       });
     }
     
-    // Add row selection column if bulk actions are enabled
-    if (configuration.enableBulkActions) {
+    // Add row selection column if bulk actions are enabled and not in read-only mode
+    if (configuration.enableBulkActions && !configuration.readOnly) {
       tabulatorColumns.push({
         formatter: "rowSelection",
         titleFormatter: "rowSelection",
@@ -331,6 +331,8 @@ const TabulatorWrapper: React.FC<TabulatorWrapperProps> = ({
         formatter: col.field === 'packageList' ? "textarea" as const : "plaintext" as const,
         // Enable three-state sorting (asc -> desc -> none)
         headerSortTristate: col.sortable !== false && configuration.enableSorting !== false ? true : false,
+        // Disable editing completely in read-only mode
+        editable: isEditable,
         // Custom cell formatter for arrays
         ...(col.field === 'packageList' && {
           formatter: (cell: any) => {
@@ -360,7 +362,7 @@ const TabulatorWrapper: React.FC<TabulatorWrapperProps> = ({
             step: 1
           }
         }),
-        // Add validation function
+        // Add validation function only if editable
         ...(isEditable && {
           validator: (cell: any, value: any) => {
             const field = cell.getField();
@@ -394,7 +396,7 @@ const TabulatorWrapper: React.FC<TabulatorWrapperProps> = ({
       movableColumns: true, // Enable column reordering
       resizableColumns: true, // Enable column resizing
       resizableColumnFit: true,
-      selectable: configuration.enableBulkActions ? true : false, // Enable row selection for bulk actions
+      selectable: configuration.enableBulkActions && !configuration.readOnly ? true : false, // Enable row selection for bulk actions only if not read-only
       selectableRangeMode: "click", // Allow range selection with shift+click
       reactiveData: true,
       
@@ -756,6 +758,10 @@ const TabulatorWrapper: React.FC<TabulatorWrapperProps> = ({
         tabulatorRef.current = null;
       }
     };
+    // Note: When configuration.readOnly changes, this effect will re-run and recreate the table
+    // with the new configuration. The tableState (selections, expansions, filters, etc.) 
+    // is preserved because it's managed outside this component and will be restored
+    // through the various event handlers and state restoration logic.
   }, [
     configuration,
     convertColumnsToTabulator,
@@ -923,7 +929,7 @@ const TabulatorWrapper: React.FC<TabulatorWrapperProps> = ({
   return (
     <div style={{ position: 'relative' }}>
       {/* Bulk Action Bar */}
-      {configuration.enableBulkActions && (
+      {configuration.enableBulkActions && !configuration.readOnly && (
         <BulkActionBar
           selectedRows={data.filter(row => tableState.selectedRows.has(row.packageId))}
           onBulkDelete={handleBulkDelete}
@@ -934,7 +940,7 @@ const TabulatorWrapper: React.FC<TabulatorWrapperProps> = ({
       )}
       
       {/* Selection Count Display */}
-      {configuration.enableBulkActions && tableState.selectedRows.size > 0 && (
+      {configuration.enableBulkActions && !configuration.readOnly && tableState.selectedRows.size > 0 && (
         <div 
           style={{
             padding: '8px 12px',
