@@ -3,6 +3,7 @@ import { TabulatorFull as Tabulator } from 'tabulator-tables';
 import { TabulatorWrapperProps, PackageRecord, ColumnDefinition } from '../types';
 import ContextMenu from './ContextMenu';
 import BulkActionBar from './BulkActionBar';
+import RowExpansionPanel from './RowExpansionPanel';
 
 /**
  * TabulatorWrapper Component
@@ -180,6 +181,118 @@ const TabulatorWrapper: React.FC<TabulatorWrapperProps> = ({
     // Prepare columns array with selection column if bulk actions are enabled
     const tabulatorColumns: any[] = [];
     
+    // Add row expansion column if row expansion is enabled
+    if (configuration.enableRowExpansion) {
+      tabulatorColumns.push({
+        title: "",
+        field: "_expansion",
+        width: 40,
+        resizable: false,
+        frozen: true,
+        headerSort: false,
+        formatter: (cell: any) => {
+          const rowData = cell.getRow().getData() as PackageRecord;
+          const isExpanded = tableState.expandedRows.has(rowData.packageId);
+          
+          // Create expansion indicator element
+          const indicator = document.createElement('button');
+          indicator.style.cssText = `
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 24px;
+            height: 24px;
+            border-radius: 2px;
+            transition: all 0.2s ease;
+          `;
+          
+          indicator.onmouseenter = () => {
+            indicator.style.backgroundColor = '#f5f5f5';
+          };
+          indicator.onmouseleave = () => {
+            indicator.style.backgroundColor = 'transparent';
+          };
+          
+          // Create arrow icon
+          const arrow = document.createElement('div');
+          arrow.style.cssText = `
+            width: 0;
+            height: 0;
+            border-style: solid;
+            transition: transform 0.2s ease;
+          `;
+          
+          if (isExpanded) {
+            arrow.style.cssText += `
+              border-left: 4px solid transparent;
+              border-right: 4px solid transparent;
+              border-top: 6px solid #6c757d;
+            `;
+          } else {
+            arrow.style.cssText += `
+              border-top: 4px solid transparent;
+              border-bottom: 4px solid transparent;
+              border-left: 6px solid #6c757d;
+            `;
+          }
+          
+          indicator.appendChild(arrow);
+          indicator.setAttribute('data-testid', 'expansion-indicator');
+          indicator.setAttribute('aria-label', isExpanded ? 'Collapse row' : 'Expand row');
+          indicator.title = isExpanded ? 'Collapse row' : 'Expand row';
+          
+          // Handle click to toggle expansion
+          indicator.onclick = (e) => {
+            e.stopPropagation();
+            const currentlyExpanded = tableState.expandedRows.has(rowData.packageId);
+            
+            if (currentlyExpanded) {
+              // Collapse the row
+              setTableState(prev => {
+                const newExpandedRows = new Set(prev.expandedRows);
+                newExpandedRows.delete(rowData.packageId);
+                return { ...prev, expandedRows: newExpandedRows };
+              });
+              
+              // Remove expansion content
+              const row = cell.getRow();
+              const nextRow = row.getNextRow();
+              if (nextRow && nextRow.getElement().classList.contains('expansion-row')) {
+                nextRow.delete();
+              }
+            } else {
+              // Expand the row
+              setTableState(prev => {
+                const newExpandedRows = new Set(prev.expandedRows);
+                newExpandedRows.add(rowData.packageId);
+                return { ...prev, expandedRows: newExpandedRows };
+              });
+              
+              // Add expansion content
+              const row = cell.getRow();
+              
+              // Create expansion row
+              const expansionRowData = {
+                _isExpansionRow: true,
+                _parentId: rowData.packageId,
+                _expansionContent: null // We'll use default content for now
+              };
+              
+              // Add the expansion row after the current row
+              const rowIndex = row.getPosition();
+              tabulatorRef.current?.addRow(expansionRowData, false, rowIndex + 1);
+            }
+          };
+          
+          return indicator;
+        }
+      });
+    }
+    
     // Add row selection column if bulk actions are enabled
     if (configuration.enableBulkActions) {
       tabulatorColumns.push({
@@ -264,7 +377,7 @@ const TabulatorWrapper: React.FC<TabulatorWrapperProps> = ({
     });
     
     return [...tabulatorColumns, ...regularColumns];
-  }, [configuration.readOnly, configuration.enableSorting, configuration.enableEditing, configuration.enableFiltering, configuration.enableBulkActions, tableState.columnWidths, tableState.columnOrder, data, getEditorType, getFilterType, getFilterFunction, validateCellValue]);
+  }, [configuration.readOnly, configuration.enableSorting, configuration.enableEditing, configuration.enableFiltering, configuration.enableBulkActions, configuration.enableRowExpansion, tableState.columnWidths, tableState.columnOrder, tableState.expandedRows, data, getEditorType, getFilterType, getFilterFunction, validateCellValue, setTableState]);
 
   // Initialize Tabulator
   useEffect(() => {
@@ -292,6 +405,149 @@ const TabulatorWrapper: React.FC<TabulatorWrapperProps> = ({
       // Tabulator configuration
       placeholder: "No data available", // Default empty state
       placeholderHeaderFilter: "No results found for current filters", // Empty state when filters are applied
+      
+      // Row formatter for expansion rows
+      rowFormatter: (row: any) => {
+        const rowData = row.getData();
+        if (rowData._isExpansionRow) {
+          const element = row.getElement();
+          element.classList.add('expansion-row');
+          element.style.cssText = `
+            background-color: #f8f9fa !important;
+            border-top: 1px solid #dee2e6;
+          `;
+          
+          // Clear all cells and add expansion content
+          const cells = element.querySelectorAll('.tabulator-cell');
+          cells.forEach((cell, index) => {
+            if (index === 0) {
+              // First cell contains the expansion content
+              cell.innerHTML = '';
+              cell.style.cssText = `
+                padding: 16px;
+                border: none;
+              `;
+              
+              // Create expansion content container
+              const contentContainer = document.createElement('div');
+              contentContainer.style.cssText = `
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                gap: 16px;
+                max-width: 100%;
+              `;
+              
+              // Add default expansion content
+              const parentData = data.find(d => d.packageId === rowData._parentId);
+              if (parentData) {
+                const sections = [
+                  { label: 'Package ID', value: parentData.packageId, testId: 'detail-package-id' },
+                  { label: 'Priority Level', value: parentData.priority, testId: 'detail-priority' },
+                  { label: 'Service Name', value: parentData.serviceName, testId: 'detail-service-name' },
+                  { label: 'Process Control ID', value: parentData.pcid, testId: 'detail-pcid' },
+                  { label: 'Quota Configuration', value: parentData.quotaName, testId: 'detail-quota-name' },
+                  { label: 'User Profile', value: parentData.userProfile, testId: 'detail-user-profile' }
+                ];
+                
+                sections.forEach(section => {
+                  const sectionDiv = document.createElement('div');
+                  sectionDiv.style.cssText = `
+                    background-color: white;
+                    border: 1px solid #e9ecef;
+                    border-radius: 4px;
+                    padding: 12px;
+                  `;
+                  
+                  const labelDiv = document.createElement('div');
+                  labelDiv.style.cssText = `
+                    font-weight: 600;
+                    color: #495057;
+                    font-size: 12px;
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
+                    margin-bottom: 4px;
+                  `;
+                  labelDiv.textContent = section.label;
+                  
+                  const valueDiv = document.createElement('div');
+                  valueDiv.style.cssText = `
+                    color: #212529;
+                    font-size: 14px;
+                    word-break: break-word;
+                  `;
+                  valueDiv.textContent = String(section.value);
+                  valueDiv.setAttribute('data-testid', section.testId);
+                  
+                  sectionDiv.appendChild(labelDiv);
+                  sectionDiv.appendChild(valueDiv);
+                  contentContainer.appendChild(sectionDiv);
+                });
+                
+                // Add package list section
+                const packageListContainer = document.createElement('div');
+                packageListContainer.style.cssText = `
+                  grid-column: 1 / -1;
+                `;
+                
+                const packageSection = document.createElement('div');
+                packageSection.style.cssText = `
+                  background-color: white;
+                  border: 1px solid #e9ecef;
+                  border-radius: 4px;
+                  padding: 12px;
+                `;
+                
+                const packageLabel = document.createElement('div');
+                packageLabel.style.cssText = `
+                  font-weight: 600;
+                  color: #495057;
+                  font-size: 12px;
+                  text-transform: uppercase;
+                  letter-spacing: 0.5px;
+                  margin-bottom: 4px;
+                `;
+                packageLabel.textContent = `Package List (${parentData.packageList.length} items)`;
+                
+                const packageListDiv = document.createElement('div');
+                packageListDiv.setAttribute('data-testid', 'detail-package-list');
+                
+                parentData.packageList.forEach((pkg, index) => {
+                  const packageItem = document.createElement('div');
+                  packageItem.style.cssText = `
+                    background-color: #e3f2fd;
+                    border: 1px solid #bbdefb;
+                    border-radius: 4px;
+                    padding: 8px 12px;
+                    margin: 4px 8px 4px 0;
+                    display: inline-block;
+                    font-size: 13px;
+                    color: #1976d2;
+                  `;
+                  packageItem.textContent = pkg;
+                  packageItem.setAttribute('data-testid', `package-item-${index}`);
+                  packageListDiv.appendChild(packageItem);
+                });
+                
+                packageSection.appendChild(packageLabel);
+                packageSection.appendChild(packageListDiv);
+                packageListContainer.appendChild(packageSection);
+                contentContainer.appendChild(packageListContainer);
+              }
+              
+              cell.appendChild(contentContainer);
+            } else {
+              // Hide other cells
+              cell.style.display = 'none';
+            }
+          });
+          
+          // Make the row span all columns
+          const firstCell = element.querySelector('.tabulator-cell');
+          if (firstCell) {
+            (firstCell as HTMLElement).style.gridColumn = '1 / -1';
+          }
+        }
+      },
       
       // Event handlers
       rowSelectionChanged: (_selectedData: any[], rows: any[]) => {
@@ -433,10 +689,53 @@ const TabulatorWrapper: React.FC<TabulatorWrapperProps> = ({
         }));
       },
       
-      // Handle data filtering to track empty results
+      // Handle data filtering to track empty results and preserve expansion states
       dataFiltered: (_filters: any[], rows: any[]) => {
         const hasActiveFilters = Object.keys(tableState.filters).length > 0;
         const isEmpty = rows.length === 0;
+        
+        // Preserve expansion states for visible rows during filtering
+        if (hasActiveFilters && configuration.enableRowExpansion) {
+          const visibleRowIds = new Set(rows.map((row: any) => row.getData().packageId));
+          const currentExpandedRows = tableState.expandedRows;
+          
+          // Keep expansion states for rows that are still visible
+          const preservedExpansions = new Set(
+            Array.from(currentExpandedRows).filter(rowId => visibleRowIds.has(rowId))
+          );
+          
+          // Update table state to preserve expansion states
+          if (preservedExpansions.size !== currentExpandedRows.size) {
+            setTableState(prev => ({
+              ...prev,
+              expandedRows: preservedExpansions
+            }));
+          }
+          
+          // Re-add expansion rows for visible expanded rows
+          setTimeout(() => {
+            if (tabulatorRef.current) {
+              preservedExpansions.forEach(rowId => {
+                const parentRow = tabulatorRef.current?.getRow(rowId);
+                if (parentRow) {
+                  // Check if expansion row already exists
+                  const nextRow = parentRow.getNextRow();
+                  if (!nextRow || !nextRow.getData()._isExpansionRow) {
+                    // Add expansion row
+                    const expansionRowData = {
+                      _isExpansionRow: true,
+                      _parentId: rowId,
+                      _expansionContent: null
+                    };
+                    
+                    const rowIndex = parentRow.getPosition();
+                    tabulatorRef.current?.addRow(expansionRowData, false, rowIndex + 1);
+                  }
+                }
+              });
+            }
+          }, 100); // Small delay to ensure filtering is complete
+        }
         
         // The placeholder handling is managed by Tabulator's built-in placeholder system
         // We just track the state here for potential UI updates
@@ -467,15 +766,43 @@ const TabulatorWrapper: React.FC<TabulatorWrapperProps> = ({
     onColumnWidthChange,
     setTableState,
     getCurrentFilters,
-    validateCellValue
+    validateCellValue,
+    data,
+    tableState.filters
   ]);
 
   // Update data when props change
   useEffect(() => {
     if (tabulatorRef.current && data) {
       tabulatorRef.current.setData(data);
+      
+      // Restore expansion states after data update
+      if (configuration.enableRowExpansion && tableState.expandedRows.size > 0) {
+        setTimeout(() => {
+          if (tabulatorRef.current) {
+            tableState.expandedRows.forEach(rowId => {
+              const parentRow = tabulatorRef.current?.getRow(rowId);
+              if (parentRow) {
+                // Check if expansion row already exists
+                const nextRow = parentRow.getNextRow();
+                if (!nextRow || !nextRow.getData()._isExpansionRow) {
+                  // Add expansion row
+                  const expansionRowData = {
+                    _isExpansionRow: true,
+                    _parentId: rowId,
+                    _expansionContent: null
+                  };
+                  
+                  const rowIndex = parentRow.getPosition();
+                  tabulatorRef.current?.addRow(expansionRowData, false, rowIndex + 1);
+                }
+              }
+            });
+          }
+        }, 100); // Small delay to ensure data is loaded
+      }
     }
-  }, [data]);
+  }, [data, configuration.enableRowExpansion, tableState.expandedRows]);
 
   // Handle context menu clicks outside to close
   useEffect(() => {

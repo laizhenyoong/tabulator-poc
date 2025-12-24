@@ -131,20 +131,22 @@ const AdvancedDataTable: React.FC<AdvancedDataTableProps> = ({
       setTableState(prev => ({
         ...prev,
         columnOrder: persistedState.columnOrder,
-        columnWidths: persistedState.columnWidths
+        columnWidths: persistedState.columnWidths,
+        expandedRows: new Set(persistedState.expandedRows || [])
       }));
     }
   }, [tableId, setTableState]);
 
   // Save state to session storage when column state changes
   useEffect(() => {
-    if (tableState.columnOrder.length > 0 || Object.keys(tableState.columnWidths).length > 0) {
+    if (tableState.columnOrder.length > 0 || Object.keys(tableState.columnWidths).length > 0 || tableState.expandedRows.size > 0) {
       saveTableStateToSession(tableId, {
         columnOrder: tableState.columnOrder,
-        columnWidths: tableState.columnWidths
+        columnWidths: tableState.columnWidths,
+        expandedRows: Array.from(tableState.expandedRows)
       });
     }
-  }, [tableId, tableState.columnOrder, tableState.columnWidths]);
+  }, [tableId, tableState.columnOrder, tableState.columnWidths, tableState.expandedRows]);
 
   // Handle data changes from parent component
   useEffect(() => {

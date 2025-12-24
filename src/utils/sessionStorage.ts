@@ -7,6 +7,7 @@ const SESSION_STORAGE_PREFIX = 'advanced-data-table-';
 export interface SessionTableState {
   columnOrder: string[];
   columnWidths: Record<string, number>;
+  expandedRows: string[];
 }
 
 /**
