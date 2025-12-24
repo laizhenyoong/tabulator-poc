@@ -77,3 +77,15 @@ export interface ContextMenuState {
   y: number;
   rowData: PackageRecord | null;
 }
+
+export interface TabulatorWrapperProps {
+  data: PackageRecord[];
+  configuration: TableConfiguration;
+  tableState: TableState;
+  onRowSelect: (selectedRows: string[]) => void;
+  onRowExpand: (rowId: string) => React.ReactNode | null;
+  onContextMenuAction: (action: string, rowData: PackageRecord) => void;
+  onDataChange: (data: PackageRecord[]) => void;
+  onFiltersChange: (filters: Record<string, any>) => void;
+  setTableState: React.Dispatch<React.SetStateAction<TableState>>;
+}
