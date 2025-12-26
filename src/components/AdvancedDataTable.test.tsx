@@ -123,9 +123,18 @@ describe('AdvancedDataTable', () => {
               const tableElement = container.querySelector('[data-testid="advanced-data-table"]');
               expect(tableElement).toBeInTheDocument();
 
-              // Verify the tabulator wrapper is rendered
-              const tabulatorElement = container.querySelector('[data-testid="tabulator-table"]');
-              expect(tabulatorElement).toBeInTheDocument();
+              if (packageRecords.length === 0) {
+                // When no data, should show empty state (Requirement 1.4)
+                const emptyStateElement = container.querySelector('[data-testid="advanced-data-table"]');
+                expect(emptyStateElement).toBeInTheDocument();
+                // Should not show tabulator table when empty
+                const tabulatorElement = container.querySelector('[data-testid="tabulator-table"]');
+                expect(tabulatorElement).not.toBeInTheDocument();
+              } else {
+                // When data exists, should show tabulator table
+                const tabulatorElement = container.querySelector('[data-testid="tabulator-table"]');
+                expect(tabulatorElement).toBeInTheDocument();
+              }
 
               return true;
             } finally {

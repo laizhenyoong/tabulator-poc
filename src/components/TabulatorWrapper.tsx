@@ -3,7 +3,6 @@ import { TabulatorFull as Tabulator } from 'tabulator-tables';
 import { TabulatorWrapperProps, PackageRecord, ColumnDefinition } from '../types';
 import ContextMenu from './ContextMenu';
 import BulkActionBar from './BulkActionBar';
-import RowExpansionPanel from './RowExpansionPanel';
 
 /**
  * TabulatorWrapper Component
@@ -21,6 +20,8 @@ const TabulatorWrapper: React.FC<TabulatorWrapperProps> = ({
   onColumnOrderChange,
   onColumnWidthChange,
   onContextMenuAction,
+  onError,
+  onLoadingStateChange,
   setTableState
 }) => {
   const tableRef = useRef<HTMLDivElement>(null);
@@ -28,29 +29,46 @@ const TabulatorWrapper: React.FC<TabulatorWrapperProps> = ({
 
   // Clear all filters
   const clearAllFilters = useCallback(() => {
-    if (tabulatorRef.current) {
-      tabulatorRef.current.clearHeaderFilter();
-      onFiltersChange({});
-      setTableState(prev => ({
-        ...prev,
-        filters: {}
-      }));
+    try {
+      if (tabulatorRef.current) {
+        tabulatorRef.current.clearHeaderFilter();
+        onFiltersChange({}, data.length); // Pass full data count when filters are cleared
+        setTableState(prev => ({
+          ...prev,
+          filters: {}
+        }));
+      }
+    } catch (error) {
+      if (onError) {
+        onError(error as Error, 'clearing filters');
+      } else {
+        console.error('Error clearing filters:', error);
+      }
     }
-  }, [onFiltersChange, setTableState]);
+  }, [onFiltersChange, setTableState, data.length, onError]);
 
   // Get current filter values
   const getCurrentFilters = useCallback(() => {
-    if (tabulatorRef.current) {
-      const currentFilters = tabulatorRef.current.getHeaderFilters() || [];
-      return currentFilters.reduce((acc: Record<string, any>, filter: any) => {
-        if (filter.value) {
-          acc[filter.field] = filter.value;
-        }
-        return acc;
-      }, {});
+    try {
+      if (tabulatorRef.current) {
+        const currentFilters = tabulatorRef.current.getHeaderFilters() || [];
+        return currentFilters.reduce((acc: Record<string, any>, filter: any) => {
+          if (filter.value) {
+            acc[filter.field] = filter.value;
+          }
+          return acc;
+        }, {});
+      }
+      return {};
+    } catch (error) {
+      if (onError) {
+        onError(error as Error, 'getting current filters');
+      } else {
+        console.error('Error getting current filters:', error);
+      }
+      return {};
     }
-    return {};
-  }, []);
+  }, [onError]);
 
   // Validation functions for different field types
   const validateCellValue = useCallback((field: string, value: any, _rowData: PackageRecord): { isValid: boolean; errorMessage?: string } => {
@@ -284,7 +302,7 @@ const TabulatorWrapper: React.FC<TabulatorWrapperProps> = ({
               
               // Add the expansion row after the current row
               const rowIndex = row.getPosition();
-              tabulatorRef.current?.addRow(expansionRowData, false, rowIndex + 1);
+              tabulatorRef.current?.addRow(expansionRowData, false, Number(rowIndex) + 1);
             }
           };
           
@@ -385,9 +403,15 @@ const TabulatorWrapper: React.FC<TabulatorWrapperProps> = ({
   useEffect(() => {
     if (!tableRef.current) return;
 
-    const tabulatorColumns = convertColumnsToTabulator(configuration.columns);
+    try {
+      // Emit loading state
+      if (onLoadingStateChange) {
+        onLoadingStateChange(true);
+      }
 
-    const tabulatorConfig: any = {
+      const tabulatorColumns = convertColumnsToTabulator(configuration.columns);
+
+      const tabulatorConfig: any = {
       data: data,
       columns: tabulatorColumns,
       layout: "fitColumns",
@@ -421,7 +445,7 @@ const TabulatorWrapper: React.FC<TabulatorWrapperProps> = ({
           
           // Clear all cells and add expansion content
           const cells = element.querySelectorAll('.tabulator-cell');
-          cells.forEach((cell, index) => {
+          cells.forEach((cell: any, index: number) => {
             if (index === 0) {
               // First cell contains the expansion content
               cell.innerHTML = '';
@@ -683,12 +707,29 @@ const TabulatorWrapper: React.FC<TabulatorWrapperProps> = ({
       },
       
       headerFilterUpdated: (_field: string, _value: any) => {
-        const currentFilters = getCurrentFilters();
-        onFiltersChange(currentFilters);
-        setTableState(prev => ({
-          ...prev,
-          filters: currentFilters
-        }));
+        try {
+          const currentFilters = getCurrentFilters();
+          
+          // Get filtered data count
+          let filteredCount = data.length;
+          if (tabulatorRef.current) {
+            const filteredData = tabulatorRef.current.getData("active");
+            filteredCount = filteredData.length;
+          }
+          
+          onFiltersChange(currentFilters, filteredCount);
+          
+          setTableState(prev => ({
+            ...prev,
+            filters: currentFilters
+          }));
+        } catch (error) {
+          if (onError) {
+            onError(error as Error, 'filter update');
+          } else {
+            console.error('Error updating filters:', error);
+          }
+        }
       },
       
       // Handle data filtering to track empty results and preserve expansion states
@@ -731,7 +772,7 @@ const TabulatorWrapper: React.FC<TabulatorWrapperProps> = ({
                     };
                     
                     const rowIndex = parentRow.getPosition();
-                    tabulatorRef.current?.addRow(expansionRowData, false, rowIndex + 1);
+                    tabulatorRef.current?.addRow(expansionRowData, false, Number(rowIndex) + 1);
                   }
                 }
               });
@@ -751,6 +792,11 @@ const TabulatorWrapper: React.FC<TabulatorWrapperProps> = ({
     // Create Tabulator instance
     tabulatorRef.current = new Tabulator(tableRef.current, tabulatorConfig);
 
+    // Emit loading complete
+    if (onLoadingStateChange) {
+      onLoadingStateChange(false);
+    }
+
     // Cleanup function
     return () => {
       if (tabulatorRef.current) {
@@ -758,6 +804,17 @@ const TabulatorWrapper: React.FC<TabulatorWrapperProps> = ({
         tabulatorRef.current = null;
       }
     };
+  } catch (error) {
+    if (onError) {
+      onError(error as Error, 'table initialization');
+    } else {
+      console.error('Error initializing table:', error);
+    }
+    
+    if (onLoadingStateChange) {
+      onLoadingStateChange(false);
+    }
+  }
     // Note: When configuration.readOnly changes, this effect will re-run and recreate the table
     // with the new configuration. The tableState (selections, expansions, filters, etc.) 
     // is preserved because it's managed outside this component and will be restored
@@ -770,6 +827,8 @@ const TabulatorWrapper: React.FC<TabulatorWrapperProps> = ({
     onFiltersChange,
     onColumnOrderChange,
     onColumnWidthChange,
+    onError,
+    onLoadingStateChange,
     setTableState,
     getCurrentFilters,
     validateCellValue,
@@ -779,36 +838,52 @@ const TabulatorWrapper: React.FC<TabulatorWrapperProps> = ({
 
   // Update data when props change
   useEffect(() => {
-    if (tabulatorRef.current && data) {
-      tabulatorRef.current.setData(data);
-      
-      // Restore expansion states after data update
-      if (configuration.enableRowExpansion && tableState.expandedRows.size > 0) {
-        setTimeout(() => {
-          if (tabulatorRef.current) {
-            tableState.expandedRows.forEach(rowId => {
-              const parentRow = tabulatorRef.current?.getRow(rowId);
-              if (parentRow) {
-                // Check if expansion row already exists
-                const nextRow = parentRow.getNextRow();
-                if (!nextRow || !nextRow.getData()._isExpansionRow) {
-                  // Add expansion row
-                  const expansionRowData = {
-                    _isExpansionRow: true,
-                    _parentId: rowId,
-                    _expansionContent: null
-                  };
-                  
-                  const rowIndex = parentRow.getPosition();
-                  tabulatorRef.current?.addRow(expansionRowData, false, rowIndex + 1);
-                }
+    try {
+      if (tabulatorRef.current && data) {
+        tabulatorRef.current.setData(data);
+        
+        // Restore expansion states after data update
+        if (configuration.enableRowExpansion && tableState.expandedRows.size > 0) {
+          setTimeout(() => {
+            try {
+              if (tabulatorRef.current) {
+                tableState.expandedRows.forEach(rowId => {
+                  const parentRow = tabulatorRef.current?.getRow(rowId);
+                  if (parentRow) {
+                    // Check if expansion row already exists
+                    const nextRow = parentRow.getNextRow();
+                    if (!nextRow || !nextRow.getData()._isExpansionRow) {
+                      // Add expansion row
+                      const expansionRowData = {
+                        _isExpansionRow: true,
+                        _parentId: rowId,
+                        _expansionContent: null
+                      };
+                      
+                      const rowIndex = parentRow.getPosition();
+                      tabulatorRef.current?.addRow(expansionRowData, false, Number(rowIndex) + 1);
+                    }
+                  }
+                });
               }
-            });
-          }
-        }, 100); // Small delay to ensure data is loaded
+            } catch (error) {
+              if (onError) {
+                onError(error as Error, 'restoring expansion states');
+              } else {
+                console.error('Error restoring expansion states:', error);
+              }
+            }
+          }, 100); // Small delay to ensure data is loaded
+        }
+      }
+    } catch (error) {
+      if (onError) {
+        onError(error as Error, 'updating table data');
+      } else {
+        console.error('Error updating table data:', error);
       }
     }
-  }, [data, configuration.enableRowExpansion, tableState.expandedRows]);
+  }, [data, configuration.enableRowExpansion, tableState.expandedRows, onError]);
 
   // Handle context menu clicks outside to close
   useEffect(() => {
